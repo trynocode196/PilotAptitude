@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Home — Pilot Aptitude</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/site.css" />
+</head>
+<body>
+<script src="js/app.js"></script>
+<script>
+  PilotApp.mount("index.html", `
+    <section class="hero">
+      <div class="hero-kicker">Windows native · Keyboard only</div>
+      <h1>AVIATION PILOT APTITUDE</h1>
+      <p>
+        Complete COMPASS™-inspired screening battery: registration, memory, compensatory tracking,
+        mathematics, slalom, orientation, and dual-task management — all operable with configurable keyboard controls.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="intro.html">Register candidate</a>
+        <a class="btn btn-ghost" href="settings.html">Configure keys</a>
+        <a class="btn btn-ghost" href="results.html">Results</a>
+      </div>
+    </section>
+    <section class="module-grid">
+      <article class="module-card"><span class="tag mvp">MVP</span><h2>INTRODUCTION</h2><p>Candidate registration before assessment.</p><div class="cta-row"><a class="btn btn-primary" href="intro.html">Open</a></div></article>
+      <article class="module-card"><span class="tag mvp">MVP</span><h2>MEMORY</h2><p>Short-term recall of altitude, speed, heading, radio.</p><div class="cta-row"><a class="btn btn-primary" href="memory.html">Open</a></div></article>
+      <article class="module-card"><span class="tag mvp">MVP</span><h2>CONTROL</h2><p>Keep needle and ball on red marks against drift.</p><div class="cta-row"><a class="btn btn-primary" href="control.html">Open</a></div></article>
+      <article class="module-card"><span class="tag mvp">MVP</span><h2>MATHEMATICS</h2><p>Timed aviation mental arithmetic.</p><div class="cta-row"><a class="btn btn-primary" href="mathematics.html">Open</a></div></article>
+      <article class="module-card"><span class="tag">Strong</span><h2>SLALOM</h2><p>Guide the delta between streaming markers.</p><div class="cta-row"><a class="btn btn-primary" href="slalom.html">Open</a></div></article>
+      <article class="module-card"><span class="tag">Strong</span><h2>ORIENTATION</h2><p>Match instruments to the correct aircraft symbol.</p><div class="cta-row"><a class="btn btn-primary" href="orientation.html">Open</a></div></article>
+      <article class="module-card"><span class="tag">Complete</span><h2>TASK MANAGER</h2><p>Update autopilot while cancelling alerts.</p><div class="cta-row"><a class="btn btn-primary" href="taskmanager.html">Open</a></div></article>
+    </section>
+  `);
+</script>
+</body>
+</html>

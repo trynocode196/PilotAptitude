@@ -1,83 +1,85 @@
 (function () {
-  const memTitle = document.getElementById("memTitle");
-  const memSummary = document.getElementById("memSummary");
-  const memChart = document.getElementById("memChart");
-  const ctlTitle = document.getElementById("ctlTitle");
-  const ctlSummary = document.getElementById("ctlSummary");
-  const ctlChart = document.getElementById("ctlChart");
-  const historyList = document.getElementById("historyList");
+  const modules = [
+    { id: "memory", label: "Memory" },
+    { id: "control", label: "Control" },
+    { id: "mathematics", label: "Mathematics" },
+    { id: "slalom", label: "Slalom" },
+    { id: "orientation", label: "Orientation" },
+    { id: "taskmanager", label: "Task Manager" }
+  ];
 
-  function bar(label, pct, suffix) {
-    const row = document.createElement("div");
-    row.className = "bar-row";
-    row.innerHTML = `
-      <span>${label}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, pct))}%"></div></div>
-      <span>${suffix}</span>`;
-    return row;
+  function scoreOf(x) {
+    if (typeof x.score === "number") return x.score;
+    if (typeof x.accuracyPct === "number") return x.accuracyPct;
+    if (typeof x.timeOnTargetPct === "number") return x.timeOnTargetPct;
+    return 0;
   }
 
   function render() {
-    const s = PilotScoring.summary();
+    const s = PilotApp.summary();
+    const candidate = PilotApp.loadCandidate();
+    PilotApp.mount("results.html", `
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h1>RESULTS</h1>
+            <p>${candidate ? PilotApp.escapeHtml(candidate.firstname + " " + candidate.lastname) + " · local history" : "No candidate registered yet."}</p>
+          </div>
+          <div class="cta-row">
+            <button class="btn btn-ghost" id="btnExport">Export JSON</button>
+            <button class="btn btn-warn" id="btnClear">Clear</button>
+          </div>
+        </div>
+        <div class="module-grid" id="cards"></div>
+        <h2 style="font-family:var(--font-display);letter-spacing:0.08em;margin:1.5rem 0 0.7rem;">SESSION HISTORY</h2>
+        <ul class="history-list" id="history"></ul>
+      </section>
+    `);
 
-    if (s.memory.length) {
-      memTitle.textContent = `${Math.round(s.memoryAvgAccuracy)}% avg accuracy`;
-      memSummary.textContent = `${s.memory.length} session(s) · avg recall ${(s.memoryAvgTime / 1000).toFixed(1)}s`;
-      memChart.innerHTML = "";
-      s.memory.slice(0, 6).forEach((m, i) => {
-        memChart.appendChild(bar(`#${i + 1}`, m.accuracyPct || 0, `${m.accuracyPct || 0}%`));
+    const cards = document.getElementById("cards");
+    modules.forEach((m) => {
+      const rows = s.by(m.id);
+      const avg = s.avg(rows, scoreOf);
+      const card = document.createElement("article");
+      card.className = "module-card";
+      card.style.animation = "none";
+      card.innerHTML = `
+        <span class="tag">${m.label}</span>
+        <h2>${rows.length ? Math.round(avg) : "—"}</h2>
+        <p>${rows.length ? rows.length + " session(s)" : "No sessions yet"}</p>
+        <div class="chart-bars"></div>`;
+      const chart = card.querySelector(".chart-bars");
+      rows.slice(0, 5).forEach((r, i) => {
+        const pct = Math.max(0, Math.min(100, scoreOf(r)));
+        const row = document.createElement("div");
+        row.className = "bar-row";
+        row.innerHTML = `<span>#${i+1}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span>${Math.round(pct)}</span>`;
+        chart.appendChild(row);
       });
-    } else {
-      memTitle.textContent = "No sessions yet";
-      memSummary.textContent = "Complete a Memory assessment or practice run to populate this chart.";
-      memChart.innerHTML = "";
-    }
+      cards.appendChild(card);
+    });
 
-    if (s.control.length) {
-      ctlTitle.textContent = `${Math.round(s.controlAvgOnTarget)}% on target`;
-      ctlSummary.textContent = `${s.control.length} session(s) · mean |dev| ${s.controlAvgDeviation.toFixed(1)} px`;
-      ctlChart.innerHTML = "";
-      s.control.slice(0, 6).forEach((c, i) => {
-        ctlChart.appendChild(bar(`#${i + 1}`, c.timeOnTargetPct || 0, `${c.timeOnTargetPct || 0}%`));
-      });
-    } else {
-      ctlTitle.textContent = "No sessions yet";
-      ctlSummary.textContent = "Complete a Control run to see on-target % and deviation metrics.";
-      ctlChart.innerHTML = "";
-    }
-
+    const hist = document.getElementById("history");
     if (!s.all.length) {
-      historyList.innerHTML = `<li class="empty-state">No recorded attempts yet.</li>`;
-      return;
-    }
-
-    historyList.innerHTML = s.all
-      .map((x) => {
+      hist.innerHTML = `<li>No recorded attempts yet.</li>`;
+    } else {
+      hist.innerHTML = s.all.map((x) => {
         const when = new Date(x.timestamp).toLocaleString();
-        if (x.module === "memory") {
-          return `<li><span><strong>MEMORY</strong> · ${x.mode} · ${x.accuracyPct}% · ${(x.avgRecallMs / 1000).toFixed(1)}s avg</span><span>${when}</span></li>`;
-        }
-        return `<li><span><strong>CONTROL</strong> · ${x.mode} · ${x.timeOnTargetPct}% on target · ${x.corrections} corr</span><span>${when}</span></li>`;
-      })
-      .join("");
-  }
-
-  document.getElementById("btnClear").addEventListener("click", () => {
-    if (confirm("Clear all local results?")) {
-      PilotScoring.clear();
-      render();
+        return `<li><span><strong>${x.module.toUpperCase()}</strong> · ${x.mode || ""} · score ${Math.round(scoreOf(x))}</span><span>${when}</span></li>`;
+      }).join("");
     }
-  });
 
-  document.getElementById("btnExport").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify(PilotScoring.load(), null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `pilot-aptitude-results-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
+    document.getElementById("btnClear").onclick = () => {
+      if (confirm("Clear all results?")) { PilotApp.clearResults(); render(); }
+    };
+    document.getElementById("btnExport").onclick = () => {
+      const blob = new Blob([JSON.stringify({ candidate: PilotApp.loadCandidate(), results: PilotApp.loadResults() }, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `pilot-aptitude-results-${Date.now()}.json`;
+      a.click();
+    };
+  }
 
   render();
 })();

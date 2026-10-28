@@ -1,147 +1,117 @@
 (function () {
-  const params = new URLSearchParams(window.location.search);
-  let mode = params.get("mode") === "assessment" ? "assessment" : "practice";
+  let mode = "practice";
+  let running = false, raf = 0, lastTs = 0, elapsed = 0, durationMs = 45000;
+  let samples = 0, onTarget = 0, absDev = 0, corrections = 0, lastMag = 0, noiseT = 0;
+  const held = new Set();
+  const needle = { a: 0, va: 0 };
+  const ball = { x: 0, y: 0, vx: 0, vy: 0 };
+  const TARGET = 0.12;
 
-  const canvas = document.getElementById("controlCanvas");
-  const ctx = canvas.getContext("2d");
-  const els = {
-    modeToggle: document.getElementById("modeToggle"),
-    statTime: document.getElementById("statTime"),
-    statOnTarget: document.getElementById("statOnTarget"),
-    statDev: document.getElementById("statDev"),
-    statCorr: document.getElementById("statCorr"),
-    btnStart: document.getElementById("btnStart"),
-    btnStop: document.getElementById("btnStop"),
-    feedback: document.getElementById("feedback"),
-    endRow: document.getElementById("endRow"),
-    btnRestart: document.getElementById("btnRestart")
-  };
-
-  const center = { x: canvas.width / 2, y: canvas.height / 2 };
-  const targetRadius = 18;
-  const ball = { x: center.x, y: center.y, vx: 0, vy: 0 };
-  const input = { x: 0, y: 0 };
-  const keys = new Set();
-
-  let running = false;
-  let raf = 0;
-  let lastTs = 0;
-  let durationMs = 45000;
-  let elapsed = 0;
-  let samples = 0;
-  let onTargetSamples = 0;
-  let absDevSum = 0;
-  let corrections = 0;
-  let lastInputMag = 0;
-  let noiseT = 0;
-  let pointerActive = false;
-
-  function durationForMode() {
-    return mode === "assessment" ? 75000 : 45000;
+  function keysHud() {
+    const k = PilotApp.loadKeys();
+    return `<div class="keys-live">Active:
+      <span class="keycap">${PilotApp.prettyKey(k.left)}</span>
+      <span class="keycap">${PilotApp.prettyKey(k.right)}</span>
+      <span class="keycap">${PilotApp.prettyKey(k.up)}</span>
+      <span class="keycap">${PilotApp.prettyKey(k.down)}</span>
+      <a href="settings.html" style="margin-left:0.4rem;">rebind</a>
+    </div>`;
   }
 
-  function driftStrength() {
-    return mode === "assessment" ? 95 : 70;
+  function render() {
+    PilotApp.mount("control.html", `
+      <section class="panel">
+        <div class="panel-header">
+          <div><h1>CONTROL</h1><p>Keep the blue needle and blue ball on the red marks. Keyboard only — hold keys for continuous correction.</p></div>
+          <div class="mode-toggle" id="modeToggle">
+            <button type="button" data-mode="practice" class="${mode==="practice"?"active":""}">Practice</button>
+            <button type="button" data-mode="assessment" class="${mode==="assessment"?"active":""}">Assessment</button>
+          </div>
+        </div>
+        ${keysHud()}
+        <div class="status-bar">
+          <div class="stat-chip"><span class="label">Time</span><span class="value" id="statTime">${Math.round((mode==="assessment"?75000:45000)/1000)}s</span></div>
+          <div class="stat-chip"><span class="label">On target</span><span class="value" id="statOn">0%</span></div>
+          <div class="stat-chip"><span class="label">Mean |dev|</span><span class="value" id="statDev">—</span></div>
+          <div class="stat-chip"><span class="label">Corrections</span><span class="value" id="statCorr">0</span></div>
+        </div>
+        <div class="two-col">
+          <div class="instrument-frame"><canvas id="cv" width="520" height="400"></canvas></div>
+          <aside>
+            <p class="instructions">Practice 45s · Assessment 75s with stronger drift. Score = time-on-target % and mean deviation.</p>
+            <div class="cta-row">
+              <button class="btn btn-primary" id="btnStart">Start run</button>
+              <button class="btn btn-ghost" id="btnStop" disabled>Abort</button>
+            </div>
+            <div class="feedback" id="feedback"></div>
+            <div class="cta-row hidden" id="endRow" style="margin-top:0.7rem;">
+              <a class="btn btn-primary" href="results.html">Results</a>
+              <button class="btn btn-ghost" id="btnAgain">Run again</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+    `);
+    wire();
+    draw();
   }
 
-  function setMode(next) {
-    mode = next;
-    [...els.modeToggle.querySelectorAll("button")].forEach((b) => {
-      b.classList.toggle("active", b.dataset.mode === mode);
-    });
-    if (!running) {
-      durationMs = durationForMode();
-      els.statTime.textContent = `${Math.round(durationMs / 1000)}s`;
-    }
-  }
-
-  function resetBall() {
-    ball.x = center.x;
-    ball.y = center.y;
-    ball.vx = 0;
-    ball.vy = 0;
-    noiseT = Math.random() * 1000;
+  function inputAxes() {
+    let x = 0, y = 0;
+    if (PilotApp.isHeld(held, "left")) x -= 1;
+    if (PilotApp.isHeld(held, "right")) x += 1;
+    if (PilotApp.isHeld(held, "up")) y -= 1;
+    if (PilotApp.isHeld(held, "down")) y += 1;
+    return { x, y };
   }
 
   function draw() {
-    const w = canvas.width;
-    const h = canvas.height;
+    const cv = document.getElementById("cv");
+    if (!cv) return;
+    const ctx = cv.getContext("2d");
+    const w = cv.width, h = cv.height;
     ctx.clearRect(0, 0, w, h);
-
-    // Instrument face
-    const grd = ctx.createRadialGradient(center.x, center.y, 20, center.x, center.y, 220);
-    grd.addColorStop(0, "#163447");
-    grd.addColorStop(1, "#071018");
-    ctx.fillStyle = grd;
+    ctx.fillStyle = "#071018";
     ctx.fillRect(0, 0, w, h);
 
-    // Outer ring
-    ctx.strokeStyle = "#2d4558";
-    ctx.lineWidth = 8;
+    // Round dial
+    const cx = 150, cy = 200, R = 110;
+    ctx.fillStyle = "#122433";
+    ctx.beginPath(); ctx.arc(cx, cy, R + 8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#2d4558"; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+    // red mark at top
+    ctx.strokeStyle = "#e85d5d"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(cx, cy - R + 8); ctx.lineTo(cx, cy - R + 28); ctx.stroke();
+    // blue needle
+    const ang = -Math.PI / 2 + needle.a * 1.2;
+    ctx.strokeStyle = "#4ea8ff"; ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.arc(center.x, center.y, 170, 0, Math.PI * 2);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(ang) * (R - 18), cy + Math.sin(ang) * (R - 18));
     ctx.stroke();
+    ctx.fillStyle = "#4ea8ff";
+    ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fill();
 
-    // Crosshairs
-    ctx.strokeStyle = "rgba(142, 168, 184, 0.35)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(center.x - 160, center.y);
-    ctx.lineTo(center.x + 160, center.y);
-    ctx.moveTo(center.x, center.y - 160);
-    ctx.lineTo(center.x, center.y + 160);
-    ctx.stroke();
-
-    // Horizontal bar gauge
+    // Rectangle tracking
+    const rx = 300, ry = 80, rw = 180, rh = 240;
     ctx.fillStyle = "#0d1a24";
-    ctx.fillRect(center.x - 140, h - 48, 280, 18);
-    ctx.strokeStyle = "#2d4558";
-    ctx.strokeRect(center.x - 140, h - 48, 280, 18);
-    const barX = center.x + (ball.x - center.x) * 0.55;
-    ctx.fillStyle = "#3ec6ff";
-    ctx.fillRect(barX - 8, h - 48, 16, 18);
-    ctx.fillStyle = "#e85d5d";
-    ctx.fillRect(center.x - 2, h - 52, 4, 26);
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeStyle = "#2d4558"; ctx.lineWidth = 2; ctx.strokeRect(rx, ry, rw, rh);
+    // red center cross
+    const mx = rx + rw / 2, my = ry + rh / 2;
+    ctx.strokeStyle = "#e85d5d"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(mx - 18, my); ctx.lineTo(mx + 18, my);
+    ctx.moveTo(mx, my - 18); ctx.lineTo(mx, my + 18); ctx.stroke();
+    // blue ball
+    const bx = mx + ball.x * (rw * 0.42);
+    const by = my + ball.y * (rh * 0.42);
+    ctx.fillStyle = "#4ea8ff";
+    ctx.beginPath(); ctx.arc(bx, by, 12, 0, Math.PI * 2); ctx.fill();
 
-    // Target mark
-    ctx.strokeStyle = "#e85d5d";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(center.x - 16, center.y);
-    ctx.lineTo(center.x + 16, center.y);
-    ctx.moveTo(center.x, center.y - 16);
-    ctx.lineTo(center.x, center.y + 16);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(center.x, center.y, targetRadius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Ball
-    const ballGrad = ctx.createRadialGradient(ball.x - 4, ball.y - 4, 2, ball.x, ball.y, 14);
-    ballGrad.addColorStop(0, "#9ef0d8");
-    ballGrad.addColorStop(1, "#2fd6a8");
-    ctx.fillStyle = ballGrad;
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, 12, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Label
-    ctx.fillStyle = "rgba(232, 238, 244, 0.55)";
+    ctx.fillStyle = "rgba(230,238,244,0.55)";
     ctx.font = "12px IBM Plex Mono, monospace";
     ctx.fillText("COMPENSATORY TRACK", 16, 24);
-  }
-
-  function readKeyboardInput() {
-    let x = 0;
-    let y = 0;
-    if (keys.has("ArrowLeft") || keys.has("a") || keys.has("A")) x -= 1;
-    if (keys.has("ArrowRight") || keys.has("d") || keys.has("D")) x += 1;
-    if (keys.has("ArrowUp") || keys.has("w") || keys.has("W")) y -= 1;
-    if (keys.has("ArrowDown") || keys.has("s") || keys.has("S")) y += 1;
-    if (!pointerActive) {
-      input.x = x;
-      input.y = y;
-    }
   }
 
   function step(ts) {
@@ -151,183 +121,90 @@
     lastTs = ts;
     elapsed += dt * 1000;
     noiseT += dt;
+    const strength = mode === "assessment" ? 1.15 : 0.85;
+    const inp = inputAxes();
+    const driftA = Math.sin(noiseT * 1.6) * strength * 0.9 + Math.sin(noiseT * 2.8) * 0.35;
+    const driftX = Math.sin(noiseT * 1.3) * strength + Math.cos(noiseT * 2.1) * 0.4;
+    const driftY = Math.cos(noiseT * 1.5) * strength + Math.sin(noiseT * 2.6) * 0.35;
 
-    readKeyboardInput();
+    needle.va = needle.va * 0.9 + (driftA + inp.x * 2.2) * dt;
+    needle.a = Math.max(-1, Math.min(1, needle.a + needle.va * dt));
 
-    // Noise-based turbulence
-    const strength = driftStrength();
-    const ax =
-      Math.sin(noiseT * 1.7) * strength +
-      Math.sin(noiseT * 3.1 + 1.2) * strength * 0.45 +
-      input.x * 220;
-    const ay =
-      Math.cos(noiseT * 1.3) * strength +
-      Math.sin(noiseT * 2.4 + 0.7) * strength * 0.5 +
-      input.y * 220;
+    ball.vx = ball.vx * 0.9 + (driftX + inp.x * 2.4) * dt;
+    ball.vy = ball.vy * 0.9 + (driftY + inp.y * 2.4) * dt;
+    ball.x = Math.max(-1, Math.min(1, ball.x + ball.vx * dt));
+    ball.y = Math.max(-1, Math.min(1, ball.y + ball.vy * dt));
 
-    ball.vx = ball.vx * 0.92 + ax * dt;
-    ball.vy = ball.vy * 0.92 + ay * dt;
-    ball.x += ball.vx * dt;
-    ball.y += ball.vy * dt;
+    const err = (Math.abs(needle.a) + Math.hypot(ball.x, ball.y)) / 2;
+    samples++; absDev += err;
+    if (err <= TARGET) onTarget++;
+    const mag = Math.hypot(inp.x, inp.y);
+    if (mag > 0.2 && lastMag <= 0.2) corrections++;
+    lastMag = mag;
 
-    // Soft walls
-    const maxR = 155;
-    const dx = ball.x - center.x;
-    const dy = ball.y - center.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist > maxR) {
-      const s = maxR / dist;
-      ball.x = center.x + dx * s;
-      ball.y = center.y + dy * s;
-      ball.vx *= -0.35;
-      ball.vy *= -0.35;
-    }
-
-    const err = Math.hypot(ball.x - center.x, ball.y - center.y);
-    samples += 1;
-    absDevSum += err;
-    if (err <= targetRadius) onTargetSamples += 1;
-
-    const mag = Math.hypot(input.x, input.y);
-    if (mag > 0.2 && lastInputMag <= 0.2) corrections += 1;
-    lastInputMag = mag;
-
-    const left = Math.max(0, durationMs - elapsed);
-    els.statTime.textContent = `${Math.ceil(left / 1000)}s`;
-    const onPct = samples ? Math.round((onTargetSamples / samples) * 100) : 0;
-    els.statOnTarget.textContent = `${onPct}%`;
-    els.statDev.textContent = samples ? (absDevSum / samples).toFixed(1) : "—";
-    els.statCorr.textContent = String(corrections);
-
+    document.getElementById("statTime").textContent = Math.ceil(Math.max(0, durationMs - elapsed) / 1000) + "s";
+    document.getElementById("statOn").textContent = (samples ? Math.round((onTarget / samples) * 100) : 0) + "%";
+    document.getElementById("statDev").textContent = samples ? (absDev / samples).toFixed(2) : "—";
+    document.getElementById("statCorr").textContent = String(corrections);
     draw();
-
-    if (elapsed >= durationMs) {
-      finish(false);
-      return;
-    }
+    if (elapsed >= durationMs) { finish(false); return; }
     raf = requestAnimationFrame(step);
   }
 
   function start() {
     if (running) return;
-    durationMs = durationForMode();
-    elapsed = 0;
-    samples = 0;
-    onTargetSamples = 0;
-    absDevSum = 0;
-    corrections = 0;
-    lastInputMag = 0;
-    lastTs = 0;
-    resetBall();
+    durationMs = mode === "assessment" ? 75000 : 45000;
+    elapsed = samples = onTarget = absDev = corrections = lastMag = 0;
+    lastTs = 0; noiseT = Math.random() * 10;
+    needle.a = needle.va = 0; ball.x = ball.y = ball.vx = ball.vy = 0;
     running = true;
-    els.btnStart.disabled = true;
-    els.btnStop.disabled = false;
-    els.endRow.classList.add("hidden");
-    els.feedback.className = "feedback";
-    els.modeToggle.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    document.getElementById("btnStart").disabled = true;
+    document.getElementById("btnStop").disabled = false;
+    document.getElementById("endRow").classList.add("hidden");
+    document.getElementById("feedback").className = "feedback";
     raf = requestAnimationFrame(step);
   }
 
   function finish(aborted) {
     running = false;
     cancelAnimationFrame(raf);
-    els.btnStart.disabled = false;
-    els.btnStop.disabled = true;
-    els.modeToggle.querySelectorAll("button").forEach((b) => (b.disabled = false));
-    input.x = 0;
-    input.y = 0;
-
-    const timeOnTargetPct = samples ? Math.round((onTargetSamples / samples) * 100) : 0;
-    const meanAbsDeviation = samples ? +(absDevSum / samples).toFixed(2) : 0;
-
+    document.getElementById("btnStart").disabled = false;
+    document.getElementById("btnStop").disabled = true;
+    const timeOnTargetPct = samples ? Math.round((onTarget / samples) * 100) : 0;
+    const meanAbsDeviation = samples ? +(absDev / samples).toFixed(3) : 0;
     if (!aborted) {
-      PilotScoring.save({
-        module: "control",
-        mode,
-        timeOnTargetPct,
-        meanAbsDeviation,
-        corrections,
-        durationSec: Math.round(durationMs / 1000)
+      PilotApp.saveResult({
+        module: "control", mode, timeOnTargetPct, meanAbsDeviation, corrections,
+        score: timeOnTargetPct, durationSec: Math.round(durationMs / 1000)
       });
-      els.endRow.classList.remove("hidden");
-      els.feedback.className = "feedback show ok";
-      els.feedback.innerHTML = `<strong>Run complete.</strong> On target ${timeOnTargetPct}% · Mean |dev| ${meanAbsDeviation} · Corrections ${corrections}`;
+      document.getElementById("endRow").classList.remove("hidden");
+      PilotApp.showFeedback(document.getElementById("feedback"), true,
+        `<strong>Complete.</strong> On target ${timeOnTargetPct}% · Mean |dev| ${meanAbsDeviation}`);
     } else {
-      els.feedback.className = "feedback show bad";
-      els.feedback.innerHTML = "Run aborted — score not saved.";
+      PilotApp.showFeedback(document.getElementById("feedback"), false, "Aborted — not saved.");
     }
     draw();
   }
 
-  // Input handlers
+  function wire() {
+    document.getElementById("modeToggle").onclick = (e) => {
+      const b = e.target.closest("button[data-mode]");
+      if (!b || running) return;
+      mode = b.dataset.mode; render();
+    };
+    document.getElementById("btnStart").onclick = start;
+    document.getElementById("btnStop").onclick = () => finish(true);
+    document.getElementById("btnAgain")?.addEventListener("click", start);
+  }
+
   window.addEventListener("keydown", (e) => {
-    const tracked = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "a", "A", "s", "S", "d", "D", "w", "W"];
-    if (tracked.includes(e.key)) {
-      keys.add(e.key);
+    const k = PilotApp.loadKeys();
+    if (Object.values(k).includes(e.code)) {
+      held.add(e.code);
       if (running) e.preventDefault();
     }
   });
-  window.addEventListener("keyup", (e) => keys.delete(e.key));
+  window.addEventListener("keyup", (e) => held.delete(e.code));
 
-  function pointerToInput(clientX, clientY) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const x = (clientX - rect.left) * scaleX;
-    const y = (clientY - rect.top) * scaleY;
-    input.x = Math.max(-1, Math.min(1, (x - center.x) / 120));
-    input.y = Math.max(-1, Math.min(1, (y - center.y) / 120));
-  }
-
-  canvas.addEventListener("pointerdown", (e) => {
-    pointerActive = true;
-    canvas.setPointerCapture(e.pointerId);
-    pointerToInput(e.clientX, e.clientY);
-  });
-  canvas.addEventListener("pointermove", (e) => {
-    if (!pointerActive) return;
-    pointerToInput(e.clientX, e.clientY);
-  });
-  canvas.addEventListener("pointerup", () => {
-    pointerActive = false;
-    input.x = 0;
-    input.y = 0;
-  });
-
-  // Optional gamepad
-  function pollGamepad() {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    const pad = pads && pads[0];
-    if (pad && running && !pointerActive) {
-      const dead = 0.15;
-      let x = pad.axes[0] || 0;
-      let y = pad.axes[1] || 0;
-      if (Math.abs(x) < dead) x = 0;
-      if (Math.abs(y) < dead) y = 0;
-      if (x || y) {
-        input.x = x;
-        input.y = y;
-      }
-    }
-    requestAnimationFrame(pollGamepad);
-  }
-  pollGamepad();
-
-  els.modeToggle.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-mode]");
-    if (!btn || running) return;
-    setMode(btn.dataset.mode);
-  });
-
-  els.btnStart.addEventListener("click", start);
-  els.btnStop.addEventListener("click", () => finish(true));
-  els.btnRestart?.addEventListener("click", () => {
-    els.endRow.classList.add("hidden");
-    els.feedback.className = "feedback";
-    start();
-  });
-
-  setMode(mode);
-  resetBall();
-  draw();
+  render();
 })();

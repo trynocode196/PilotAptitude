@@ -1,66 +1,67 @@
-# Pilot Aptitude Screening Platform
+# Aviation Pilot Aptitude Screening Platform
 
-Modern web-based pilot aptitude assessment inspired by COMPASS™ (EPST). Built with **ASP.NET Core Razor Pages** (.NET 10).
-
-## Features
-
-- **Landing page** — overview of Memory and Control modules
-- **MEMORY** — short-term recall of altitude, speed, heading, radio (practice + assessment)
-- **CONTROL** — compensatory tracking with turbulence drift (keyboard / mouse / gamepad)
-- **Results dashboard** — accuracy, time-on-target, charts, session history
-- **Local scoring** — results stored in browser `localStorage` (exportable JSON)
-- Aviation-inspired dark instrument UI, desktop + tablet friendly
-
-## Requirements
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
-
-## Run
-
-```bash
-cd PilotAptitude
-dotnet run --launch-profile http
-```
-
-Open **http://localhost:5234**
-
-HTTPS profile (optional):
-
-```bash
-dotnet run --launch-profile https
-```
+Windows **native** desktop application (WPF + WebView2) inspired by COMPASS™.  
+Keyboard-only controls with configurable key bindings. Full module suite.
 
 ## Modules
 
-| Module  | Practice mode        | Assessment mode                          |
-|---------|---------------------|------------------------------------------|
-| Memory  | Unlimited rounds    | 8 rounds, shorter display, more blanks   |
-| Control | 45s run             | 75s run, stronger drift                  |
+| Module | Status | Notes |
+|--------|--------|--------|
+| Introduction | MVP | Candidate registration |
+| Memory | MVP | Short-term recall of A/S/H/R |
+| Control | MVP | Compensatory tracking (needle + ball) |
+| Mathematics | MVP | Timed aviation mental math |
+| Slalom | Strong | Path tracking between markers |
+| Orientation | Strong | Instrument → aircraft match |
+| Task Manager | Complete | Autopilot updates + alerts |
 
-### Memory scoring
-- % correct across blanked fields
-- Average recall time (ms)
+## Requirements
 
-### Control scoring
-- Time-on-target %
-- Mean absolute deviation from center
-- Correction count (input onset edges)
+- Windows 10/11
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [WebView2 Evergreen Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (usually preinstalled on Win11)
+
+## Build & run
+
+```bash
+cd PilotAptitude
+dotnet restore
+dotnet build
+dotnet run
+```
+
+Executable output:
+
+`bin\Debug\net10.0-windows\PilotAptitude.exe`
+
+## Keyboard settings
+
+Open **Keys** in the app to rebind:
+
+- Steer / track axes (left, right, up, down)
+- Confirm
+- Alert cancel 1–3
+
+Defaults: Arrow keys + Enter + Digit1/2/3.
+
+## Data storage
+
+Candidate profile, key bindings, and results are stored locally in WebView localStorage (JSON export available on Results).
 
 ## Project layout
 
 ```
 PilotAptitude/
-  Pages/           # Razor pages (Index, Memory, Control, Results)
-  wwwroot/css/     # Aviation UI styles
-  wwwroot/js/      # memory.js, control.js, scoring.js, results.js
+  App.xaml / MainWindow.xaml   # WPF + WebView2 host
+  wwwroot/                     # UI (HTML/CSS/JS modules)
+  PilotAptitude.csproj
 ```
 
-## Stretch included
+## Brief alignment (v2.0)
 
-- Practice vs assessment modes
-- Gamepad API support (optional joystick)
-- JSON export of results history
-
-## Design notes
-
-Dark instrument panels with cyan/amber/green accents (PFD-inspired). Canvas + `requestAnimationFrame` for Control physics; noise-based drift with keyboard/WASD and pointer input.
+- Windows native executable
+- Keyboard only (no joystick required)
+- Configurable key bindings
+- Practice + Assessment modes
+- Results dashboard + local storage
+- Minimum viable + full suite modules implemented

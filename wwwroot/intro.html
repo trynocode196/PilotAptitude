@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Introduction — Pilot Aptitude</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/site.css" />
+</head>
+<body>
+<script src="js/app.js"></script>
+<script>
+  const existing = PilotApp.loadCandidate() || {};
+  PilotApp.mount("intro.html", `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h1>INTRODUCTION</h1>
+          <p>Candidate registration. Press Enter to advance fields. Continue unlocks when required fields are filled.</p>
+        </div>
+      </div>
+      <form id="introForm" class="form-grid" autocomplete="off">
+        <div class="field required"><label for="company">Company / Institute</label><input id="company" name="company" value="${PilotApp.escapeHtml(existing.company || "")}" /></div>
+        <div class="field required"><label for="firstname">Firstname</label><input id="firstname" name="firstname" value="${PilotApp.escapeHtml(existing.firstname || "")}" /></div>
+        <div class="field required"><label for="lastname">Lastname</label><input id="lastname" name="lastname" value="${PilotApp.escapeHtml(existing.lastname || "")}" /></div>
+        <div class="field"><label for="address">Address</label><input id="address" name="address" value="${PilotApp.escapeHtml(existing.address || "")}" /></div>
+        <div class="field"><label for="zipcode">Zipcode</label><input id="zipcode" name="zipcode" value="${PilotApp.escapeHtml(existing.zipcode || "")}" /></div>
+        <div class="field"><label for="place">Place</label><input id="place" name="place" value="${PilotApp.escapeHtml(existing.place || "")}" /></div>
+        <div class="field required"><label for="country">Country</label>
+          <select id="country" name="country">
+            ${["India","United States","United Kingdom","Germany","France","UAE","Singapore","Australia","Canada","Other"].map(c =>
+              `<option ${ (existing.country||"India")===c ? "selected":"" }>${c}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field required"><label for="birthdate">Birthdate</label><input id="birthdate" name="birthdate" type="date" value="${PilotApp.escapeHtml(existing.birthdate || "")}" /></div>
+        <div class="field required"><label for="gender">Gender</label>
+          <select id="gender" name="gender">
+            ${["Male","Female","Other","Prefer not to say"].map(g =>
+              `<option ${ (existing.gender||"Male")===g ? "selected":"" }>${g}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field"><label for="telephone">Telephone</label><input id="telephone" name="telephone" value="${PilotApp.escapeHtml(existing.telephone || "")}" /></div>
+        <div class="field required"><label for="email">E-Mail</label><input id="email" name="email" type="email" value="${PilotApp.escapeHtml(existing.email || "")}" /></div>
+      </form>
+      <div class="cta-row" style="margin-top:1rem;">
+        <button class="btn btn-primary" id="btnContinue" type="button" disabled>Continue</button>
+        <a class="btn btn-ghost" href="memory.html">Skip to Memory</a>
+      </div>
+      <div class="feedback" id="feedback"></div>
+    </section>
+  `);
+
+  const form = document.getElementById("introForm");
+  const btn = document.getElementById("btnContinue");
+  const required = ["company","firstname","lastname","country","birthdate","gender","email"];
+  const fields = [...form.querySelectorAll("input, select")];
+
+  function validate() {
+    const data = Object.fromEntries(new FormData(form).entries());
+    const ok = required.every((k) => String(data[k] || "").trim().length > 0);
+    btn.disabled = !ok;
+    return { ok, data };
+  }
+
+  fields[0]?.focus();
+  form.addEventListener("input", validate);
+  form.addEventListener("change", validate);
+  form.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const idx = fields.indexOf(document.activeElement);
+    if (idx >= 0 && idx < fields.length - 1) fields[idx + 1].focus();
+    else if (!btn.disabled) btn.click();
+  });
+
+  btn.addEventListener("click", () => {
+    const { ok, data } = validate();
+    if (!ok) return;
+    PilotApp.saveCandidate(data);
+    PilotApp.showFeedback(document.getElementById("feedback"), true, `<strong>Registered.</strong> ${PilotApp.escapeHtml(data.firstname)} ${PilotApp.escapeHtml(data.lastname)} — continue to modules.`);
+    setTimeout(() => { location.href = "memory.html"; }, 700);
+  });
+
+  validate();
+</script>
+</body>
+</html>

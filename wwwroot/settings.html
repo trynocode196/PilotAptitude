@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Key Settings — Pilot Aptitude</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/site.css" />
+</head>
+<body>
+<script src="js/app.js"></script>
+<script>
+  const labels = {
+    left: "Move / Steer Left",
+    right: "Move / Steer Right",
+    up: "Move Up / Nose Up",
+    down: "Move Down / Nose Down",
+    confirm: "Confirm / Submit",
+    cancelAlert1: "Cancel Alert 1",
+    cancelAlert2: "Cancel Alert 2",
+    cancelAlert3: "Cancel Alert 3"
+  };
+
+  let keys = PilotApp.loadKeys();
+  let listening = null;
+
+  function render() {
+    PilotApp.mount("settings.html", `
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h1>KEYBOARD SETTINGS</h1>
+            <p>All modules are keyboard-only. Click a binding, then press a new key. Defaults: arrows / WASD-compatible codes via Arrow keys.</p>
+          </div>
+          <div class="cta-row">
+            <button class="btn btn-ghost" id="btnReset">Reset defaults</button>
+            <button class="btn btn-primary" id="btnSave">Save</button>
+          </div>
+        </div>
+        <div class="settings-list" id="list">
+          ${Object.keys(labels).map((k) => `
+            <div class="setting-row">
+              <span>${labels[k]}</span>
+              <button type="button" class="bind ${listening===k?"listening":""}" data-action="${k}">${listening===k ? "Press key…" : PilotApp.prettyKey(keys[k])}</button>
+              <code style="color:var(--muted);font-size:0.75rem;">${keys[k]}</code>
+            </div>`).join("")}
+        </div>
+        <div class="feedback" id="feedback"></div>
+      </section>
+    `);
+
+    document.getElementById("btnReset").onclick = () => {
+      keys = PilotApp.resetKeys();
+      listening = null;
+      render();
+      PilotApp.showFeedback(document.getElementById("feedback"), true, "Defaults restored.");
+    };
+    document.getElementById("btnSave").onclick = () => {
+      PilotApp.saveKeys(keys);
+      listening = null;
+      render();
+      PilotApp.showFeedback(document.getElementById("feedback"), true, "Key bindings saved.");
+    };
+    document.querySelectorAll(".bind").forEach((btn) => {
+      btn.onclick = () => {
+        listening = btn.dataset.action;
+        render();
+      };
+    });
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (!listening) return;
+    e.preventDefault();
+    keys[listening] = e.code;
+    listening = null;
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>
