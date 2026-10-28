@@ -1,0 +1,47 @@
+﻿@page
+@model PilotAptitude.Pages.IndexModel
+@{
+    ViewData["Title"] = "Home";
+}
+
+<section class="hero">
+    <div class="hero-kicker">Screening platform</div>
+    <h1>PILOT APTITUDE</h1>
+    <p>
+        A modern web assessment inspired by COMPASS™. Measure short-term recall and compensatory
+        tracking — the same cognitive and psychomotor skills used in airline and flight-school selection.
+    </p>
+    <div class="cta-row">
+        <a class="btn btn-primary" asp-page="/Memory">Start Memory</a>
+        <a class="btn btn-ghost" asp-page="/Control">Start Control</a>
+        <a class="btn btn-ghost" asp-page="/Results">View Results</a>
+    </div>
+</section>
+
+<section class="module-grid">
+    <article class="module-card">
+        <span class="tag">Core module</span>
+        <h2>MEMORY</h2>
+        <p>
+            Memorize altitude, speed, heading, and radio. Values flash for a few seconds, then vanish.
+            Recall under time pressure across escalating rounds.
+        </p>
+        <div class="cta-row">
+            <a class="btn btn-primary" asp-page="/Memory" asp-route-mode="practice">Practice</a>
+            <a class="btn btn-ghost" asp-page="/Memory" asp-route-mode="assessment">Assessment</a>
+        </div>
+    </article>
+
+    <article class="module-card">
+        <span class="tag">Core module</span>
+        <h2>CONTROL</h2>
+        <p>
+            Keep the indicator centered while turbulence drifts it off target. Score time-on-target,
+            mean deviation, and correction count over a fixed run.
+        </p>
+        <div class="cta-row">
+            <a class="btn btn-primary" asp-page="/Control" asp-route-mode="practice">Practice</a>
+            <a class="btn btn-ghost" asp-page="/Control" asp-route-mode="assessment">Assessment</a>
+        </div>
+    </article>
+</section>

@@ -1,0 +1,77 @@
+@page
+@model PilotAptitude.Pages.MemoryModel
+@{
+    ViewData["Title"] = "Memory";
+}
+
+<section class="panel memory-stage">
+    <div class="panel-header">
+        <div>
+            <h1>MEMORY</h1>
+            <p>Short-term recall of aviation parameters under time pressure.</p>
+        </div>
+        <div class="mode-toggle" id="modeToggle">
+            <button type="button" data-mode="practice" class="active">Practice</button>
+            <button type="button" data-mode="assessment">Assessment</button>
+        </div>
+    </div>
+
+    <p class="instructions" id="instructions">
+        Memorize the four values. When they blank, enter each missing parameter. Practice has unlimited rounds;
+        assessment runs 8 timed rounds with rising difficulty.
+    </p>
+
+    <div class="status-bar">
+        <div class="stat-chip"><span class="label">Round</span><span class="value" id="statRound">—</span></div>
+        <div class="stat-chip"><span class="label">Score</span><span class="value" id="statScore">0%</span></div>
+        <div class="stat-chip"><span class="label">Avg recall</span><span class="value" id="statTime">—</span></div>
+        <div class="stat-chip"><span class="label">Mode</span><span class="value" id="statMode">Practice</span></div>
+    </div>
+
+    <div class="data-panel" id="dataPanel">
+        <div class="param-grid">
+            <div class="param" data-key="a"><span class="key">A · ALTITUDE</span><span class="val" id="valA">—</span></div>
+            <div class="param" data-key="s"><span class="key">S · SPEED</span><span class="val" id="valS">—</span></div>
+            <div class="param" data-key="h"><span class="key">H · HEADING</span><span class="val" id="valH">—</span></div>
+            <div class="param" data-key="r"><span class="key">R · RADIO</span><span class="val" id="valR">—</span></div>
+        </div>
+    </div>
+
+    <div class="cta-row" id="startRow">
+        <button class="btn btn-primary" id="btnStart">Begin trial</button>
+        <button class="btn btn-ghost" id="btnHowTo">How it works</button>
+    </div>
+
+    <form class="recall-form hidden" id="recallForm" autocomplete="off">
+        <div class="field">
+            <label for="inputA">Altitude (a)</label>
+            <input id="inputA" name="a" inputmode="numeric" placeholder="e.g. 3500" />
+        </div>
+        <div class="field">
+            <label for="inputS">Speed (s)</label>
+            <input id="inputS" name="s" inputmode="numeric" placeholder="e.g. 240" />
+        </div>
+        <div class="field">
+            <label for="inputH">Heading (h)</label>
+            <input id="inputH" name="h" inputmode="numeric" placeholder="e.g. 275" />
+        </div>
+        <div class="field">
+            <label for="inputR">Radio (r)</label>
+            <input id="inputR" name="r" inputmode="decimal" placeholder="e.g. 118.75" />
+        </div>
+        <div class="cta-row" style="grid-column: 1 / -1;">
+            <button type="submit" class="btn btn-primary">Submit recall</button>
+        </div>
+    </form>
+
+    <div class="feedback" id="feedback"></div>
+
+    <div class="cta-row hidden" id="endRow">
+        <a class="btn btn-primary" asp-page="/Results">Open results</a>
+        <button class="btn btn-ghost" id="btnRestart">Run again</button>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="~/js/memory.js" asp-append-version="true"></script>
+}

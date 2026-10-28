@@ -1,0 +1,43 @@
+@page
+@model PilotAptitude.Pages.ResultsModel
+@{
+    ViewData["Title"] = "Results";
+}
+
+<section class="panel">
+    <div class="panel-header">
+        <div>
+            <h1>RESULTS</h1>
+            <p>Scores, accuracy, time-on-target, and recent session history stored locally in your browser.</p>
+        </div>
+        <div class="cta-row">
+            <button class="btn btn-ghost" id="btnExport">Export JSON</button>
+            <button class="btn btn-warn" id="btnClear">Clear history</button>
+        </div>
+    </div>
+
+    <div class="results-grid">
+        <article class="module-card" style="animation:none;">
+            <span class="tag">Memory</span>
+            <h2 id="memTitle">No sessions yet</h2>
+            <p id="memSummary">Complete a Memory assessment or practice run to populate this chart.</p>
+            <div class="chart-bars" id="memChart"></div>
+        </article>
+
+        <article class="module-card" style="animation:none;">
+            <span class="tag">Control</span>
+            <h2 id="ctlTitle">No sessions yet</h2>
+            <p id="ctlSummary">Complete a Control run to see on-target % and deviation metrics.</p>
+            <div class="chart-bars" id="ctlChart"></div>
+        </article>
+    </div>
+
+    <h2 style="font-family:var(--font-display);letter-spacing:0.08em;margin:1.75rem 0 0.75rem;">SESSION HISTORY</h2>
+    <ul class="history-list" id="historyList">
+        <li class="empty-state">No recorded attempts yet.</li>
+    </ul>
+</section>
+
+@section Scripts {
+    <script src="~/js/results.js" asp-append-version="true"></script>
+}
