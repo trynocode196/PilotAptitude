@@ -20,3 +20,5 @@ Thumbs.db
 
 ## Unused template libs
 wwwroot/lib/
+
+.vercel
